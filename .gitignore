@@ -1,0 +1,35 @@
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.env
+
+# Working notes stay on disk, not in the published repo
+CLAUDE.md
+
+# Light curves, caches and built datasets live on D:\transithunter-data
+# (see transithunter/config.py). Guard against a stray local copy anyway.
+data/
+*.fits
+*.parquet
+*.npy
+*.npz
+
+# MLflow local store and exported weights
+mlruns/
+mlartifacts/
+artifacts/
+*.pt
+*.pth
+*.onnx
+
+# Great Expectations runtime files
+gx/uncommitted/
+
+web/node_modules/
+web/dist/
+
+.DS_Store
+Thumbs.db
