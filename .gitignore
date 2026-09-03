@@ -6,8 +6,9 @@ __pycache__/
 .ipynb_checkpoints/
 .env
 
-# Working notes stay on disk, not in the published repo
+# Working notes stay on disk. README.md is the only markdown file in the public repo.
 CLAUDE.md
+PLAN.md
 
 # Light curves, caches and built datasets live on D:\transithunter-data
 # (see transithunter/config.py). Guard against a stray local copy anyway.
