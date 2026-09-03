@@ -11,7 +11,7 @@ CLAUDE.md
 
 # Light curves, caches and built datasets live on D:\transithunter-data
 # (see transithunter/config.py). Guard against a stray local copy anyway.
-data/
+/data/
 *.fits
 *.parquet
 *.npy
