@@ -14,8 +14,17 @@ RAW_DIR = DATA_DIR / "raw"
 PROCESSED_DIR = DATA_DIR / "processed"
 LABELS_PATH = DATA_DIR / "koi_labels.parquet"
 
-# lightkurve reads this at import time, so set it before importing lightkurve.
-os.environ.setdefault("LIGHTKURVE_CACHE_DIR", str(RAW_DIR))
+# lightkurve 2.6 ignores LIGHTKURVE_CACHE_DIR. Every module that imports
+# lightkurve must call configure_lightkurve() first, or files land in
+# ~/.cache/lightkurve on C:. transithunter.data.fetch does this on import.
+LIGHTKURVE_CACHE_DIR = RAW_DIR
+
+
+def configure_lightkurve() -> None:
+    import lightkurve as lk
+
+    LIGHTKURVE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    lk.conf.cache_dir = str(LIGHTKURVE_CACHE_DIR)
 
 # Exported model weights. MLflow holds the versioned copies under mlruns/.
 ARTIFACTS_DIR = DATA_DIR / "artifacts"
