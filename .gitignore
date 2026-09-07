@@ -9,6 +9,7 @@ __pycache__/
 # Working notes stay on disk. README.md is the only markdown file in the public repo.
 CLAUDE.md
 PLAN.md
+RESUME_POINTS.md
 
 # Light curves, caches and built datasets live on D:\transithunter-data
 # (see transithunter/config.py). Guard against a stray local copy anyway.
@@ -20,6 +21,7 @@ PLAN.md
 
 # MLflow local store and exported weights
 mlruns/
+mlflow.db
 mlartifacts/
 artifacts/
 *.pt
