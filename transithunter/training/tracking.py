@@ -13,10 +13,32 @@ EXPERIMENT = "transithunter"
 
 def start_run(run_name: str, tags: dict[str, str] | None = None):
     mlflow.set_tracking_uri(config.MLFLOW_TRACKING_URI)
-    if mlflow.get_experiment_by_name(EXPERIMENT) is None:
+    experiment = mlflow.get_experiment_by_name(EXPERIMENT)
+    if experiment is None:
         mlflow.create_experiment(EXPERIMENT, artifact_location=config.MLFLOW_ARTIFACT_ROOT)
+    else:
+        _assert_artifact_root(experiment.artifact_location)
     mlflow.set_experiment(EXPERIMENT)
     return mlflow.start_run(run_name=run_name, tags=tags)
+
+
+def _assert_artifact_root(recorded: str) -> None:
+    """Fail loudly when the experiment writes artifacts somewhere else.
+
+    MLflow stores artifact_location per experiment when the experiment is
+    created and never reads MLFLOW_ARTIFACT_ROOT again, so moving the store
+    in config.py silently does nothing to an experiment that already exists.
+    That is how a run's weights and plots ended up back on C: once.
+    """
+    local = Path(recorded.removeprefix("file:///").removeprefix("file:"))
+    if local.resolve() == config.MLFLOW_ARTIFACT_DIR.resolve():
+        return
+    raise RuntimeError(
+        f"experiment {EXPERIMENT!r} writes artifacts to {recorded}, not "
+        f"{config.MLFLOW_ARTIFACT_ROOT}. MLflow cannot change this after the "
+        f"experiment exists. Move the files, then rewrite artifact_location in "
+        f"experiments and artifact_uri in runs inside {config.MLFLOW_DB_PATH}."
+    )
 
 
 def log_split_metrics(prefix: str, metrics: dict[str, float], step: int | None = None) -> None:
