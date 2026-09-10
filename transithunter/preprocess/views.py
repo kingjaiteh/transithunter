@@ -11,14 +11,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import astropy.units as u
 import lightkurve as lk
 import numpy as np
 import pandas as pd
 
 from transithunter import config
 from transithunter.data.fetch import MAST_DIR
-from transithunter.preprocess.fold import WINDOW_MULTIPLIER, flatten
+from transithunter.preprocess.fold import flatten, transit_mask
 
 LOCAL_WIDTH_DURATIONS = 4.0  # total width of the local view, in transit durations
 
@@ -38,12 +37,6 @@ def load_cached(kepid: int) -> lk.LightCurve:
         raise FileNotFoundError(f"KIC {kepid} is not in the cache at {MAST_DIR}")
     curves = [lk.read(str(f), flux_column="pdcsap_flux", quality_bitmask="default") for f in files]
     return lk.LightCurveCollection(curves).stitch().remove_nans()
-
-
-def _mask_for(lc: lk.LightCurve, period: float, t0: float, duration_hours: float) -> np.ndarray:
-    return lc.create_transit_mask(
-        period=period, transit_time=t0, duration=WINDOW_MULTIPLIER * duration_hours / 24 * u.day
-    )
 
 
 def bin_median(phase: np.ndarray, flux: np.ndarray, lo: float, hi: float, bins: int) -> np.ndarray:
@@ -77,7 +70,8 @@ def make_views(lc: lk.LightCurve, koi: pd.Series, siblings: pd.DataFrame | None 
     if siblings is not None and len(siblings):
         keep = np.ones(len(flat), dtype=bool)
         for _, sib in siblings.iterrows():
-            keep &= ~_mask_for(flat, float(sib["koi_period"]), float(sib["koi_time0bk"]), float(sib["koi_duration"]))
+            keep &= ~transit_mask(flat, float(sib["koi_period"]), float(sib["koi_time0bk"]),
+                                  float(sib["koi_duration"]))
         flat = flat[keep]
 
     # Fold by hand so phase, flux and time stay in the same order.

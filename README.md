@@ -6,10 +6,33 @@ labels. Baseline gradient boosting on transit and stellar features, then an
 AstroNet-style 1D CNN over phase-folded views, tracked in MLflow, served
 through FastAPI with a React front end.
 
-Status: Phase 2 in progress. The dataset build (3,453 KOIs on 2,693 stars,
-about 19 GB of light curves) is still downloading. Both trainers, the
-inference path, the API and the UI run end to end on the partial dataset.
-Next is training on the full dataset and publishing the metrics table here.
+Status: Phase 2 complete. The dataset is built from all 3,453 KOIs on 2,693
+stars, about 19 GB of light curves, and both models are trained on it. The
+inference path, the API and the UI run end to end against the trained CNN.
+
+## Results
+
+Test set: 516 KOIs on 404 stars, held out by star and never seen in training
+or threshold selection. The decision threshold is the one that maximises F1 on
+the validation set, frozen before test is touched. A random classifier scores
+0.556, the planet fraction of the test set.
+
+| Model | Inputs | PR-AUC | ROC-AUC | Precision | Recall |
+| --- | --- | --- | --- | --- | --- |
+| Random floor | none | 0.556 | 0.500 | | |
+| Gradient boosting | 11 catalogue features | 0.968 | 0.967 | 0.897 | 0.969 |
+| CNN | folded views only | **0.975** | 0.974 | 0.909 | 0.944 |
+| CNN | views plus catalogue features | 0.970 | 0.969 | 0.880 | 0.969 |
+
+The CNN wins on views alone, without seeing a single catalogue number. That is
+the result worth stating: transit shape carries enough signal to beat eleven
+measured columns, one of which is planet radius, which is close to the answer
+for a large eclipsing binary.
+
+The margin over the baseline is small, and the gradient boosting model is a
+genuinely strong one on this task. Adding the catalogue features to the CNN
+head scored highest on validation (0.984) and lower on test (0.970), which is
+overfitting, so the views-only model is the one exported and served.
 
 ## How it works
 
@@ -47,9 +70,10 @@ uv sync --extra train --extra validate --extra api
 uv run pytest
 ```
 
-Light curves and built datasets go under `TRANSITHUNTER_DATA_DIR` (default
-`D:\transithunter-data`). On Windows, uv installs the CUDA build of torch from
-the PyTorch index declared in `pyproject.toml`.
+Light curves, built datasets, exported weights and the MLflow store all go
+under `TRANSITHUNTER_DATA_DIR` (default `D:\transithunter-data`), so nothing
+large lands next to the code. On Windows, uv installs the CUDA build of torch
+from the PyTorch index declared in `pyproject.toml`.
 
 Build the dataset, then train:
 
@@ -83,3 +107,7 @@ proxies `/api` to port 8000.
   serving time. There is no second preprocessing path to drift.
 - Models are exported as plain weights plus a JSON card. Serving does not
   import MLflow.
+- The window that protects a transit from the detrending filter is capped at
+  half an orbit. Eclipsing binaries can eclipse for hours on a sub-day orbit,
+  and three times that duration is wider than the period itself, which would
+  mask every cadence and leave the filter nothing to fit.

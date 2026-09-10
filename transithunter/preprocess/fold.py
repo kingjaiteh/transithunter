@@ -15,11 +15,21 @@ import numpy as np
 CADENCE_DAYS = 29.4 / 60 / 24
 WINDOW_MULTIPLIER = 3.0
 
+# Eclipsing binaries can eclipse for hours on a sub-day orbit, and three times
+# that duration is then wider than the orbit itself. Masking every cadence
+# leaves the trend fit nothing to fit, so never mask more than half a cycle.
+MAX_MASK_DUTY = 0.5
+
+
+def mask_width_days(period: float, duration_hours: float) -> float:
+    """Width of the protected window around each transit, capped at half a cycle."""
+    return min(WINDOW_MULTIPLIER * duration_hours / 24, MAX_MASK_DUTY * period)
+
 
 def transit_mask(lc: lk.LightCurve, period: float, t0: float, duration_hours: float) -> np.ndarray:
     """True where a point falls inside a transit, with a small margin."""
-    half_width = WINDOW_MULTIPLIER * duration_hours / 24 / 2
-    return lc.create_transit_mask(period=period, transit_time=t0, duration=2 * half_width * u.day)
+    width = mask_width_days(period, duration_hours)
+    return lc.create_transit_mask(period=period, transit_time=t0, duration=width * u.day)
 
 
 def flatten(lc: lk.LightCurve, period: float, t0: float, duration_hours: float) -> lk.LightCurve:

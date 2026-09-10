@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 
 from transithunter import config
+from transithunter.preprocess.fold import transit_mask
 from transithunter.preprocess.views import bin_median, make_views, normalise
 
 CADENCE = 29.4 / 60 / 24
@@ -74,3 +75,26 @@ def test_bin_median_fills_empty_bins():
 def test_normalise_flat_view_does_not_divide_by_zero():
     out = normalise(np.ones(50))
     assert np.all(out == 0)
+
+
+def test_long_eclipse_on_short_orbit_still_builds():
+    """An eclipsing binary whose eclipse is a large fraction of its orbit.
+
+    Three times the eclipse duration is wider than the period here, so an
+    uncapped transit mask would hide every cadence from the trend fit.
+    """
+    v = make_views(
+        synthetic_lc(days=200, period=0.57, t0=0.2, duration_hours=5.5, depth=0.2),
+        koi_row(period=0.57, t0=0.2, duration_hours=5.5),
+    )
+    assert v.global_view.shape == (config.GLOBAL_BINS,)
+    assert v.local_view.shape == (config.LOCAL_BINS,)
+    assert np.isfinite(v.global_view).all() and np.isfinite(v.local_view).all()
+    assert np.isclose(v.local_view.min(), -1.0)
+
+
+def test_mask_never_covers_a_whole_cycle():
+    lc = synthetic_lc(days=50, period=0.57, t0=0.2, duration_hours=5.5)
+    mask = transit_mask(lc, period=0.57, t0=0.2, duration_hours=5.5)
+    assert mask.any(), "the transit itself must still be protected"
+    assert (~mask).sum() >= 0.4 * len(mask), "half of every cycle stays available to the trend fit"

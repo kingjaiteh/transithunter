@@ -29,9 +29,12 @@ def configure_lightkurve() -> None:
 # Exported model weights. MLflow holds the versioned copies under mlruns/.
 ARTIFACTS_DIR = DATA_DIR / "artifacts"
 # MLflow 3 rejects the plain file store, so runs go in a SQLite file and the
-# artifacts (plots, models) in mlruns/ next to it. Both are gitignored.
-MLFLOW_TRACKING_URI = f"sqlite:///{(PROJECT_ROOT / 'mlflow.db').as_posix()}"
-MLFLOW_ARTIFACT_ROOT = (PROJECT_ROOT / "mlruns").as_uri()
+# artifacts (plots, models) in mlruns/ next to it. Both sit on the data drive:
+# model weights and per-run plots add up, and C: is the small disk here.
+MLFLOW_DB_PATH = DATA_DIR / "mlflow.db"
+MLFLOW_ARTIFACT_DIR = DATA_DIR / "mlruns"
+MLFLOW_TRACKING_URI = f"sqlite:///{MLFLOW_DB_PATH.as_posix()}"
+MLFLOW_ARTIFACT_ROOT = MLFLOW_ARTIFACT_DIR.as_uri()
 
 # NASA Exoplanet Archive Table Access Protocol. No key needed.
 TAP_SYNC_URL = "https://exoplanetarchive.ipac.caltech.edu/TAP/sync"
