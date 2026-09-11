@@ -6,9 +6,10 @@ labels. Baseline gradient boosting on transit and stellar features, then an
 AstroNet-style 1D CNN over phase-folded views, tracked in MLflow, served
 through FastAPI with a React front end.
 
-Status: Phase 2 complete. The dataset is built from all 3,453 KOIs on 2,693
-stars, about 19 GB of light curves, and both models are trained on it. The
-inference path, the API and the UI run end to end against the trained CNN.
+Status: Phase 3 complete. The dataset is built from all 3,453 KOIs on 2,693
+stars, about 19 GB of light curves, both models are trained on it, and the demo
+runs the whole pipeline on demand behind a FastAPI job API with a React front
+end.
 
 ## Results
 
@@ -33,6 +34,29 @@ The margin over the baseline is small, and the gradient boosting model is a
 genuinely strong one on this task. Adding the catalogue features to the CNN
 head scored highest on validation (0.984) and lower on test (0.970), which is
 overfitting, so the views-only model is the one exported and served.
+
+## Serving
+
+`POST /api/vet/{kepid}` starts a job and returns at once. `GET /api/jobs/{id}`
+reports which of the four stages it is on, then the result. Finished results
+are cached as JSON, so a star someone has already asked about comes back
+without running the model again.
+
+`scripts/bench_vet.py` measures that path over 20 held-out test KOIs. On this
+machine, an RTX 2060:
+
+| Request | p50 | p95 |
+| --- | --- | --- |
+| Warm, result already cached | 31 ms | 47 ms |
+| Cold, light curve on disk, whole pipeline | 2.5 s | 4.5 s |
+
+A star that is not in the local FITS cache has to download about 7 MB of Kepler
+quarters from MAST first, which takes roughly 10 to 60 seconds. That is why
+vetting is a job rather than a request, and why the UI shows the stages.
+
+The same run checks the verdicts. The served model agreed with the NASA
+disposition on 19 of those 20 KOIs. The one disagreement was a confirmed planet
+scored at 0.062, a miss of the kind a recall of 0.944 predicts.
 
 ## How it works
 
@@ -93,7 +117,8 @@ uv run uvicorn api.main:app --port 8000
 ```
 
 Then open http://localhost:8000. For UI development, `npm run dev` in `web/`
-proxies `/api` to port 8000.
+proxies `/api` to port 8000. With the server up, `uv run python
+scripts/bench_vet.py` reproduces the latency table above.
 
 ## Design decisions
 

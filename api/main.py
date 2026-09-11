@@ -15,8 +15,10 @@ import json
 import threading
 import traceback
 import uuid
+from collections import OrderedDict
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass, field
-from pathlib import Path
 
 from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,7 +37,20 @@ EXAMPLES = [
 
 WEB_DIST = config.PROJECT_ROOT / "web" / "dist"
 
-app = FastAPI(title="TransitHunter", version="0.1")
+# Finished jobs stay in memory so the UI can poll them after the fact. A long
+# running demo would grow this forever, so keep only the most recent ones; the
+# results themselves are on disk in CACHE_DIR either way.
+MAX_JOBS = 512
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """Load the models in the background so the first vet is not the one that pays."""
+    threading.Thread(target=vetter, daemon=True).start()
+    yield
+
+
+app = FastAPI(title="TransitHunter", version="0.1", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
                    allow_methods=["*"], allow_headers=["*"])
 api = APIRouter(prefix="/api")
@@ -52,9 +67,17 @@ class Job:
     error: str | None = None
 
 
-_jobs: dict[str, Job] = {}
+_jobs: OrderedDict[str, Job] = OrderedDict()
 _lock = threading.Lock()
 _vetter: Vetter | None = None
+
+
+def remember(job: Job) -> None:
+    with _lock:
+        _jobs[job.id] = job
+        _jobs.move_to_end(job.id)
+        while len(_jobs) > MAX_JOBS:
+            _jobs.popitem(last=False)
 
 
 def vetter() -> Vetter:
@@ -85,11 +108,6 @@ def run_job(job: Job) -> None:
     except Exception as exc:  # noqa: BLE001
         job.error, job.stage = f"{type(exc).__name__}: {exc}", "error"
         traceback.print_exc()
-
-
-@app.on_event("startup")
-def warm_up() -> None:
-    threading.Thread(target=vetter, daemon=True).start()
 
 
 def _finish_app() -> None:
@@ -127,12 +145,10 @@ def vet(kepid: int, koi: str | None = None, refresh: bool = False) -> dict:
     key = cache_key(kepid, koi)
     if not refresh and (hit := cached_result(key)) is not None:
         job = Job(id=key, kepid=kepid, kepoi_name=koi, stage="done", result=hit)
-        with _lock:
-            _jobs[job.id] = job
+        remember(job)
         return {"job_id": job.id, "stage": "done", "cached": True}
     job = Job(id=uuid.uuid4().hex[:12], kepid=kepid, kepoi_name=koi)
-    with _lock:
-        _jobs[job.id] = job
+    remember(job)
     threading.Thread(target=run_job, args=(job,), daemon=True).start()
     return {"job_id": job.id, "stage": job.stage, "cached": False}
 

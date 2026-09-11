@@ -86,6 +86,12 @@ function VetPage() {
 
   useEffect(() => stopPolling, [])
 
+  // A verdict belongs to the star it was run for. Hide it once the selection
+  // moves on, rather than leaving the last result under a new KIC ID. Derived
+  // rather than cleared on change: the candidate list arrives asynchronously,
+  // so an effect on [kepid, koi] would wipe a job started before it landed.
+  const stale = job !== null && (job.kepid !== kepid || (job.kepoi_name ?? '') !== koi)
+
   return (
     <main>
       <section className="controls">
@@ -120,9 +126,9 @@ function VetPage() {
         ))}
       </section>
       {error && <p className="error">{error}</p>}
-      {job && <Stages job={job} />}
-      {job?.error && <p className="error">{job.error}</p>}
-      {job?.result && <Result r={job.result} />}
+      {job && !stale && <Stages job={job} />}
+      {job?.error && !stale && <p className="error">{job.error}</p>}
+      {job?.result && !stale && <Result r={job.result} />}
     </main>
   )
 }
